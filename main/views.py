@@ -1,23 +1,21 @@
-from django.http import JsonResponse
+from rest_framework import generics
+from rest_framework.response import Response
 from .models import Product, Warehouse
+from .serializers import ProductSerializer
 
-def get_product_info(request):
-    products = Product.objects.all()
-    result = []
-    for product in products:
-        product_info = {
-            'product_name': product.name,
-            'product_qty': product.quantity,
-            'product_materials': []
-        }
-        product_materials = product.productmaterial_set.all()
-        for product_material in product_materials:
-            warehouse_info = {
-                'warehouse_id': product_material.material.warehouse.id,
-                'material_name': product_material.material.name,
-                'qty': min(product_material.quantity, product_material.material.warehouse.remainder),
-                'price': product_material.material.warehouse.price
-            }
-            product_info['product_materials'].append(warehouse_info)
-        result.append(product_info)
-    return JsonResponse({'result': result})
+
+class ProductInfoAPIView(generics.ListAPIView):
+    serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        products = Product.objects.all()
+        for product in products:
+            product_materials = product.productmaterial_set.all()
+            for product_material in product_materials:
+                product_material.quantity = min(product_material.quantity, product_material.material.warehouse.remainder)
+        return products
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'result': serializer.data})
